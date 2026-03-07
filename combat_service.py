@@ -98,11 +98,5 @@ def health_check():
 
 
 if __name__ == '__main__':
-    # print("="*60)
-    # print("  COMBAT CALCULATOR MICROSERVICE")
-    # print("="*60)
-    # print("Running on http://localhost:5004")
-    # print("Endpoint: POST /api/combat/attack")
-    # print("Health check: GET /api/health")
-    # print("="*60)
+
     app.run(host='0.0.0.0', port=5004, debug=True)
