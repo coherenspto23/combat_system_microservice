@@ -3,91 +3,70 @@ import random
 
 app = Flask(__name__)
 
-@app.route('/api/combat/attack', methods=['POST'])
-def calculate_attack():
-    """
-    Calculate combat results based on attacker and defender stats
-    
-    Expects JSON:
-    {
-        "attacker": {
-            "strength": int,
-            "agility": int,
-            "weapon_damage": int (optional)
-        },
-        "defender": {
-            "defense": int,
-            "armor": int (optional),
-            "agility": int,
-            "health": int
-        }
-    }
-    
-    Returns JSON:
-    {
-        "damage": int,
-        "critical_hit": bool,
-        "dodged": bool,
-        "message": str,
-        "defender_health": int
-    }
-    """
-    data = request.json
-    
+# Combat data extracted 
+def extract_attacker(data):
     attacker = data.get('attacker', {})
+    return {
+        'strength': attacker.get('strength', 5),
+        'agility': attacker.get('agility', 5),
+        'weapon_damage': attacker.get('weapon_damage', 0)
+    }
+
+def extract_defender(data):
     defender = data.get('defender', {})
-    
-    # Extract attacker stats
-    attacker_strength = attacker.get('strength', 5)
-    attacker_agility = attacker.get('agility', 5)
-    weapon_damage = attacker.get('weapon_damage', 0) # optional if you use items
-    
-    # Extract defender stats
-    defender_defense = defender.get('defense', 5)
-    defender_armor = defender.get('armor', 0) # optional if you use armor
-    defender_agility = defender.get('agility', 5)
-    defender_health = defender.get('health', 100)
-    
-    # Check for dodge (based on defender's agility)
+    return {
+        'defense': defender.get('defense', 5),
+        'armor': defender.get('armor', 0),
+        'agility': defender.get('agility', 5),
+        'health': defender.get('health', 100)
+    }
+# Combat moves calculated
+def dodge(defender_agility):  
     dodge_roll = random.randint(1, 100)
     dodged = dodge_roll <= defender_agility
-    
-    if dodged:
-        return jsonify({
-            "damage": 0,
-            "critical_hit": False,
-            "dodged": True,
-            "message": "Dodged with quick reflexes!",
-            "defender_health": defender_health
-        }), 200
-    
-    # Calculate base damage
+    return dodged
+
+def base_damage(attacker_strength, weapon_damage, defender_defense, defender_armor): 
     base_damage = (attacker_strength * 2) + weapon_damage - (defender_defense + defender_armor)
-    base_damage = max(1, base_damage)  # Minimum 1 damage
-    
-    # Check for critical hit (based on attacker's agility)
+    base_damage = max(1, base_damage)
+    return base_damage
+
+def crit(attacker_agility):
     crit_roll = random.randint(1, 100)
     is_crit = crit_roll <= attacker_agility
+    return is_crit
+def resolve_attack(attacker, defender):
+    if dodge(defender['agility']):
+        return 0, False, True, "Dodged with quick reflexes!"
+    
+    is_crit = crit(attacker['agility'])
+    damage = base_damage(attacker['strength'], attacker['weapon_damage'], defender['defense'], defender['armor'])
     
     if is_crit:
-        damage = base_damage * 2
+        damage *= 2
         message = "CRITICAL HIT! Precise strike!"
     else:
-        damage = base_damage
         message = "Normal hit"
     
-    # Calculate defender's remaining health
-    new_health = defender_health - damage
+    return damage, is_crit, False, message
+
+# Get data and return it to user
+@app.route('/api/combat/attack', methods=['POST'])
+def calculate_attack():
+    data = request.json
+    attacker = extract_attacker(data)
+    defender = extract_defender(data)
+    damage, is_crit, dodged, message = resolve_attack(attacker, defender)
     
     return jsonify({
         "damage": damage,
         "critical_hit": is_crit,
-        "dodged": False,
+        "dodged": dodged,
         "message": message,
-        "defender_health": new_health
+        "defender_health": defender['health'] - damage
     }), 200
 
-
+# Shows remaining helth of player
 @app.route('/api/health', methods=['GET'])
 def health_check():
     """Check if service is running"""
@@ -105,5 +84,4 @@ if __name__ == '__main__':
     print("Endpoint: POST /api/combat/attack")
     print("Health check: GET /api/health")
     print("="*60)
-
     app.run(host='0.0.0.0', port=5004, debug=True)
